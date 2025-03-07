@@ -49,6 +49,7 @@ pub struct Core {
 }
 
 impl Core {
+    /// 刷新所有交易对的状态信息，包括流动性仓位、bin arrays等数据
     pub async fn refresh_state(&self) -> Result<()> {
         let program: Program<Arc<Keypair>> = create_program(
             self.provider.to_string(),
@@ -126,7 +127,7 @@ impl Core {
 
         Ok(())
     }
-
+    /// 获取并缓存所有代币的基本信息(如精度等)
     pub fn fetch_token_info(&self) -> Result<()> {
         let token_mints = self.get_all_token_mints();
         let program: Program<Arc<Keypair>> = create_program(
@@ -148,6 +149,7 @@ impl Core {
 
         Ok(())
     }
+    /// 获取所有交易对中涉及的代币地址列表
     pub fn get_all_token_mints(&self) -> Vec<Pubkey> {
         let state = self.state.lock().unwrap();
         let mut token_mints = vec![];
@@ -160,12 +162,14 @@ impl Core {
         token_mints
     }
 
+    /// 获取指定交易对的仓位状态信息
     pub fn get_position_state(&self, lp_pair: Pubkey) -> SinglePosition {
         let state = self.state.lock().unwrap();
         let position = state.all_positions.get(&lp_pair).unwrap();
         position.clone()
     }
 
+    /// 初始化用户的代币关联账户(ATA)
     pub async fn init_user_ata(&self) -> Result<()> {
         let payer = read_keypair_file(self.wallet.clone().unwrap())
             .map_err(|_| Error::msg("Requires a keypair file"))?;
@@ -182,7 +186,7 @@ impl Core {
         Ok(())
     }
 
-    // withdraw all positions
+    /// 从指定交易对中撤出所有流动性
     pub async fn withdraw(&self, state: &SinglePosition, is_simulation: bool) -> Result<()> {
         // let state = self.get_state();
         if state.position_pks.len() == 0 {
@@ -296,7 +300,7 @@ impl Core {
         Ok(())
     }
 
-    // TODO implement jupiter swap swap
+    /// 在交易对中执行代币兑换操作
     async fn swap(
         &self,
         state: &SinglePosition,
@@ -426,6 +430,7 @@ impl Core {
         Ok(swap_event)
     }
 
+    /// 向交易对添加流动性
     pub async fn deposit(
         &self,
         state: &SinglePosition,
@@ -582,6 +587,7 @@ impl Core {
         Ok(())
     }
 
+    /// 计算实际可存入的代币数量(考虑用户余额限制)
     pub async fn get_deposit_amount(
         &self,
         position: &SinglePosition,
@@ -624,6 +630,7 @@ impl Core {
         Ok((amount_x, amount_y))
     }
 
+    /// 获取所有交易对的仓位信息
     pub fn get_all_positions(&self) -> Vec<SinglePosition> {
         let state = self.state.lock().unwrap();
         let mut positions = vec![];
@@ -633,10 +640,12 @@ impl Core {
         positions
     }
 
+    /// 获取所有代币的信息
     pub fn get_all_tokens(&self) -> HashMap<Pubkey, Mint> {
         let state = self.state.lock().unwrap();
         state.tokens.clone()
     }
+    /// 检查并执行价格范围调整(自动再平衡)
     pub async fn check_shift_price_range(&self) -> Result<()> {
         let all_positions = self.get_all_positions();
         for position in all_positions.iter() {
@@ -670,6 +679,7 @@ impl Core {
         Ok(())
     }
 
+    /// 向右移动价格范围(当价格上涨超出范围时)
     async fn shift_right(&self, state: &SinglePosition) -> Result<()> {
         let pair_config = get_pair_config(&self.config, state.lb_pair);
         // validate that y amount is zero
@@ -725,6 +735,7 @@ impl Core {
         self.refresh_state().await?;
         Ok(())
     }
+    /// 向左移动价格范围(当价格下跌超出范围时)
     async fn shift_left(&self, state: &SinglePosition) -> Result<()> {
         let pair_config = get_pair_config(&self.config, state.lb_pair);
         info!("shift left {}", state.lb_pair);
@@ -782,12 +793,14 @@ impl Core {
         Ok(())
     }
 
+    /// 增加再平衡计数器
     pub fn inc_rebalance_time(&self, lb_pair: Pubkey) {
         let mut state = self.state.lock().unwrap();
         let state = state.all_positions.get_mut(&lb_pair).unwrap();
         state.inc_rebalance_time();
     }
 
+    /// 获取所有仓位的详细信息(包含代币精度转换后的数据)
     pub fn get_positions(&self) -> Result<Vec<PositionInfo>> {
         let all_positions = self.get_all_positions();
         let tokens = self.get_all_tokens();
