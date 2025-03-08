@@ -18,3 +18,5 @@ ts-client/dist
 ts-client/.env
 
 .pnpm-debug.log
+
+WALLET.json
