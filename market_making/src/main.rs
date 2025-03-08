@@ -28,7 +28,13 @@ extern crate log;
 
 use tokio::time::interval;
 
+/**
+ * 原代码为做市商策略 
+ */
+
+
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+/// 做市策略：1.右侧池做市 2.左侧池做市 3.双边池做市 4.查看模式
 pub enum MarketMakingMode {
     ModeRight,
     ModeLeft,
@@ -65,16 +71,16 @@ impl FromStr for MarketMakingMode {
 pub struct Args {
     /// Solana RPC provider. For example: https://api.mainnet-beta.solana.com
     #[clap(long, default_value_t = Cluster::Localnet)]
-    provider: Cluster,
+    provider: Cluster,  // Solana RPC提供者
     /// Wallet of owner
     #[clap(long)]
-    wallet: Option<String>,
+    wallet: Option<String>,  // 所有者钱包路径
     /// Address of owner, only user_public_key or wallet is set, other wise it is panic immediately
     #[clap(long)]
-    user_public_key: Option<Pubkey>,
+    user_public_key: Option<Pubkey>,  // 所有者公钥地址
     /// config path
     #[clap(long)]
-    config_file: String,
+    config_file: String,  // 配置文件路径
     // /// public key pair address,
     // #[clap(long)]
     // pair_address: Pubkey,
