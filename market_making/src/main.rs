@@ -98,14 +98,32 @@ pub struct Args {
 async fn main() {
     env_logger::init();
 
-    let Args {
-        provider,
-        wallet,
-        user_public_key,
-        config_file,
-    } = Args::parse();
+    // 不再从命令行解析参数，而是直接硬编码
+    // let Args {
+    //     provider,
+    //     wallet,
+    //     user_public_key,
+    //     config_file,
+    // } = Args::parse();
+    
+    // 硬编码参数
+    let provider = Cluster::Custom(
+        "https://mainnet.helius-rpc.com/?api-key=f17bedeb-4c13-407b-9b80-f4a6f4599fe3".to_string(),
+        "wss://mainnet.helius-rpc.com/?api-key=f17bedeb-4c13-407b-9b80-f4a6f4599fe3".to_string() // WebSocket URL 先随便塞一个，可能无法使用
+    ); // 使用Helius RPC提供商
+    let wallet = Some(String::from("./src/WALLET.json")); // 替换为实际钱包路径
+    let user_public_key = Some(Pubkey::from_str("DdbnMeK5tiQtZqsmV4e6KtAWPzRVgLT8hF3hPXskPpWW").unwrap()); // 如果需要，可以用 Some(Pubkey::from_str("你的公钥").unwrap())
+    let config_file = String::from("./src/config.json"); // 替换为实际配置文件路径
 
-    let config = get_config_from_file(&config_file).unwrap();
+    println!("正在加载配置文件: {}", config_file);
+    let config = match get_config_from_file(&config_file) {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("加载配置文件失败: {}", e);
+            panic!("无法加载配置文件，程序终止");
+        }
+    };
+    println!("配置文件加载成功");
 
     // info!("{:?}", mode);
 
