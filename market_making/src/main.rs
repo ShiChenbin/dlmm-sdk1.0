@@ -111,8 +111,9 @@ async fn main() {
         "https://mainnet.helius-rpc.com/?api-key=f17bedeb-4c13-407b-9b80-f4a6f4599fe3".to_string(),
         "wss://mainnet.helius-rpc.com/?api-key=f17bedeb-4c13-407b-9b80-f4a6f4599fe3".to_string() // WebSocket URL 先随便塞一个，可能无法使用
     ); // 使用Helius RPC提供商
-    let wallet = Some(String::from("./src/WALLET.json")); // 替换为实际钱包路径
-    let user_public_key = Some(Pubkey::from_str("DdbnMeK5tiQtZqsmV4e6KtAWPzRVgLT8hF3hPXskPpWW").unwrap()); // 如果需要，可以用 Some(Pubkey::from_str("你的公钥").unwrap())
+    let wallet = Some(String::from("./src/wallet_keypair.json")); // 
+    // 使用cli 创建的钱包的公钥 VWdHkVXCbxmUBxu6pQHpkmooR8Dvh8LdzCCKz2WHGNv
+    let user_public_key = Some(Pubkey::from_str("HFFajb363qWRuKbPhztjzMBM1b4TBfxJSq32EgySSGxB").unwrap()); // 如果需要，可以用 Some(Pubkey::from_str("你的公钥").unwrap())
     let config_file = String::from("./src/config.json"); // 替换为实际配置文件路径
 
     println!("正在加载配置文件: {}", config_file);
@@ -126,6 +127,28 @@ async fn main() {
     println!("配置文件加载成功");
 
     // info!("{:?}", mode);
+
+    // 在使用钱包文件之前添加验证
+    if let Some(wallet_path) = wallet.as_ref() {
+        println!("验证钱包文件...");
+        match read_keypair_file(wallet_path) {
+            Ok(keypair) => {
+                let wallet_pubkey = keypair.pubkey().to_string();
+                let expected_pubkey = user_public_key.unwrap().to_string();
+                println!("钱包文件公钥: {}", wallet_pubkey);
+                println!("预期公钥: {}", expected_pubkey);
+                
+                if wallet_pubkey != expected_pubkey {
+                    eprintln!("警告：钱包文件公钥与预期公钥不匹配！");
+                } else {
+                    println!("钱包文件验证成功，公钥匹配");
+                }
+            },
+            Err(e) => {
+                eprintln!("无法读取钱包文件：{}", e);
+            }
+        }
+    }
 
     let user_wallet = if should_market_making(&config) {
         let wallet =
