@@ -24,8 +24,7 @@ use anchor_spl::associated_token::get_associated_token_address;
 use anchor_spl::token::spl_token;
 use anchor_spl::token::Mint;
 use anchor_spl::token::TokenAccount;
-use anyhow::Ok;
-use anyhow::*;
+use anyhow::{self, Result, Error, Context};
 use lb_clmm::accounts;
 use lb_clmm::constants::MAX_BIN_PER_ARRAY;
 use lb_clmm::constants::MAX_BIN_PER_POSITION;
@@ -51,102 +50,232 @@ pub struct Core {
 impl Core {
     /// 刷新所有交易对的状态信息，包括流动性仓位、bin arrays等数据
     pub async fn refresh_state(&self) -> Result<()> {
+        println!("===== refresh_state开始 =====");
+        
+        println!("创建Program对象...");
         let program: Program<Arc<Keypair>> = create_program(
             self.provider.to_string(),
             self.provider.to_string(),
             lb_clmm::ID,
             Arc::new(Keypair::new()),
         )?;
+        println!("Program对象创建成功");
 
-        for pair in self.config.iter() {
+        for (i, pair) in self.config.iter().enumerate() {
+            println!("处理交易对 #{}: {}", i+1, pair.pair_address);
+            
             let pair_address = Pubkey::from_str(&pair.pair_address).unwrap();
-            let lb_pair_state: LbPair = program.account(pair_address).await?;
-            // let token_x: Mint = program.account(lb_pair_state.token_x_mint).await?;
-            // let token_y: Mint = program.account(lb_pair_state.token_y_mint).await?;
-            // get all position with an user
-            let mut position_states = program
-                .accounts::<PositionV2>(vec![
-                    RpcFilterType::DataSize((8 + PositionV2::INIT_SPACE) as u64),
-                    RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
-                        8 + 32,
-                        self.owner.to_bytes().to_vec(),
-                    )),
-                    RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
-                        8,
-                        pair_address.to_bytes().to_vec(),
-                    )),
-                ])
-                .await?;
-            let mut position_pks = vec![];
-            let mut positions = vec![];
-            let mut min_bin_id = 0;
-            let mut max_bin_id = 0;
-            let mut bin_arrays = HashMap::new();
-            if position_states.len() > 0 {
-                // sort position by bin id
-                position_states
-                    .sort_by(|a, b| a.1.lower_bin_id.partial_cmp(&b.1.lower_bin_id).unwrap());
+            println!("尝试获取LbPair账户...");
+            
+            // 获取原始账户数据并检查
+            println!("先检查原始账户数据...");
+            let raw_account = program.rpc().get_account(&pair_address);
+            match raw_account {
+                Ok(account) => {
+                    println!("账户数据大小: {} 字节", account.data.len());
+                    println!("账户所有者: {}", account.owner);
+                    
+                    // 检查数据对齐
+                    println!("数据起始地址: {:p}", account.data.as_ptr());
+                    println!("数据对齐情况: 起始地址 % 8 = {}", (account.data.as_ptr() as usize) % 8);
+                },
+                Err(e) => println!("获取原始账户失败: {}", e),
+            }
+            
+            // 现在尝试解析账户
+            println!("尝试解析为LbPair...");
+            let lb_pair_state_result = program.account::<LbPair>(pair_address).await;
+            match lb_pair_state_result {
+                Ok(lb_pair_state) => {
+                    println!("成功获取LbPair");
+                    // 打印一些LbPair状态信息
+                    println!("token_x_mint: {}", lb_pair_state.token_x_mint);
+                    println!("token_y_mint: {}", lb_pair_state.token_y_mint);
+                    
+                    println!("尝试获取用户的Position信息...");
+                    let position_states_result = program
+                        .accounts::<PositionV2>(vec![
+                            RpcFilterType::DataSize((8 + PositionV2::INIT_SPACE) as u64),
+                            RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+                                8 + 32,
+                                self.owner.to_bytes().to_vec(),
+                            )),
+                            RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+                                8,
+                                pair_address.to_bytes().to_vec(),
+                            )),
+                        ]).await;
+                    
+                    match position_states_result {
+                        Ok(mut position_states) => {
+                            println!("找到 {} 个Position", position_states.len());
+                            
+                            let mut position_pks = vec![];
+                            let mut positions = vec![];
+                            let mut min_bin_id = 0;
+                            let mut max_bin_id = 0;
+                            let mut bin_arrays = HashMap::new();
+                            
+                            if position_states.len() > 0 {
+                                println!("对Position进行排序...");
+                                // sort position by bin id
+                                position_states
+                                    .sort_by(|a, b| a.1.lower_bin_id.partial_cmp(&b.1.lower_bin_id).unwrap());
 
-                min_bin_id = position_states[0].1.lower_bin_id;
-                max_bin_id = position_states[position_states.len() - 1].1.upper_bin_id;
-                for position in position_states.iter() {
-                    position_pks.push(position.0);
-                    positions.push(position.1);
-                }
-                let mut bin_arrays_indexes = vec![];
-                for (_pk, position) in position_states.iter() {
-                    for i in position.lower_bin_id..=position.upper_bin_id {
-                        let bin_array_index = BinArray::bin_id_to_bin_array_index(i)?;
-                        if bin_arrays_indexes.contains(&bin_array_index) {
-                            continue;
+                                min_bin_id = position_states[0].1.lower_bin_id;
+                                max_bin_id = position_states[position_states.len() - 1].1.upper_bin_id;
+                                
+                                println!("处理Position的bin信息，min_bin_id={}, max_bin_id={}", min_bin_id, max_bin_id);
+                                
+                                for position in position_states.iter() {
+                                    position_pks.push(position.0);
+                                    positions.push(position.1);
+                                }
+                                
+                                println!("处理BinArray...");
+                                let mut bin_arrays_indexes = vec![];
+                                for (idx, (_pk, position)) in position_states.iter().enumerate() {
+                                    println!("处理Position #{}, lower_bin_id={}, upper_bin_id={}", 
+                                        idx+1, position.lower_bin_id, position.upper_bin_id);
+                                    
+                                    for i in position.lower_bin_id..=position.upper_bin_id {
+                                        let bin_array_index_result = BinArray::bin_id_to_bin_array_index(i);
+                                        
+                                        match bin_array_index_result {
+                                            Ok(bin_array_index) => {
+                                                if bin_arrays_indexes.contains(&bin_array_index) {
+                                                    continue;
+                                                }
+                                                bin_arrays_indexes.push(bin_array_index);
+                                                
+                                                println!("处理bin_id={}, bin_array_index={}", i, bin_array_index);
+                                                let (bin_array_pk, _bump) =
+                                                    pda::derive_bin_array_pda(pair_address, bin_array_index.into());
+                                                
+                                                println!("获取BinArray账户: {}", bin_array_pk);
+                                                let bin_array_result = program.account::<BinArray>(bin_array_pk).await;
+                                                
+                                                match bin_array_result {
+                                                    Ok(bin_array_state) => {
+                                                        println!("成功获取BinArray");
+                                                        bin_arrays.insert(bin_array_pk, bin_array_state);
+                                                    },
+                                                    Err(e) => {
+                                                        println!("❌ 获取BinArray失败: {}", e);
+                                                        println!("尝试检查原始账户数据...");
+                                                        match program.rpc().get_account(&bin_array_pk) {
+                                                            Ok(acct) => println!("原始数据大小: {}, 所有者: {}", 
+                                                                    acct.data.len(), acct.owner),
+                                                            Err(e2) => println!("获取原始账户也失败: {}", e2),
+                                                        }
+                                                        return Err(e.into());
+                                                    }
+                                                }
+                                            },
+                                            Err(e) => {
+                                                println!("❌ bin_id_to_bin_array_index失败: {}", e);
+                                                return Err(e.into());
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                println!("没有Position，跳过BinArray处理");
+                            }
+                            
+                            println!("更新状态...");
+                            let mut all_state = self.state.lock().unwrap();
+                            let state = all_state.all_positions.get_mut(&pair_address).unwrap();
+                            state.lb_pair_state = lb_pair_state;
+                            state.bin_arrays = bin_arrays;
+                            state.position_pks = position_pks;
+                            state.positions = positions;
+                            state.min_bin_id = min_bin_id;
+                            state.max_bin_id = max_bin_id;
+                            state.last_update_timestamp = get_epoch_sec();
+                            println!("交易对状态更新完成");
+                        },
+                        Err(e) => {
+                            println!("❌ 获取Position失败: {}", e);
+                            return Err(e.into());
                         }
-                        bin_arrays_indexes.push(bin_array_index);
-
-                        let (bin_array_pk, _bump) =
-                            pda::derive_bin_array_pda(pair_address, bin_array_index.into());
-
-                        let bin_array_state: BinArray = program.account(bin_array_pk).await?;
-
-                        bin_arrays.insert(bin_array_pk, bin_array_state);
                     }
+                },
+                Err(e) => {
+                    println!("❌ 获取LbPair失败: {}", e);
+                    return Err(e.into());
                 }
             }
-
-            let mut all_state = self.state.lock().unwrap();
-            let state = all_state.all_positions.get_mut(&pair_address).unwrap();
-            state.lb_pair_state = lb_pair_state;
-            state.bin_arrays = bin_arrays;
-            state.position_pks = position_pks;
-            state.positions = positions;
-            state.min_bin_id = min_bin_id;
-            state.max_bin_id = max_bin_id;
-            // state.token_x = token_x;
-            // state.token_y = token_y;
-            state.last_update_timestamp = get_epoch_sec();
         }
-
+        
+        println!("===== refresh_state完成 =====");
         Ok(())
     }
     /// 获取并缓存所有代币的基本信息(如精度等)
     pub fn fetch_token_info(&self) -> Result<()> {
+        println!("===== fetch_token_info开始 =====");
+        
+        println!("获取所有代币地址...");
         let token_mints = self.get_all_token_mints();
+        println!("需要获取 {} 个代币信息", token_mints.len());
+        
+        println!("创建Program对象...");
         let program: Program<Arc<Keypair>> = create_program(
             self.provider.to_string(),
             self.provider.to_string(),
             lb_clmm::ID,
             Arc::new(Keypair::new()),
         )?;
-        let accounts = program.rpc().get_multiple_accounts(&token_mints)?;
-
-        let mut tokens = HashMap::new();
-        for (i, &token_pk) in token_mints.iter().enumerate() {
-            let account =
-                Mint::try_deserialize(&mut accounts[i].clone().unwrap().data.as_ref()).unwrap();
-            tokens.insert(token_pk, account);
+        
+        println!("批量获取代币账户...");
+        let accounts_result = program.rpc().get_multiple_accounts(&token_mints);
+        
+        match accounts_result {
+            Ok(accounts) => {
+                println!("成功获取 {} 个账户", accounts.len());
+                
+                let mut tokens = HashMap::new();
+                for (i, &token_pk) in token_mints.iter().enumerate() {
+                    println!("处理代币 #{}: {}", i+1, token_pk);
+                    
+                    if let Some(account_option) = accounts.get(i) {
+                        if let Some(account) = account_option {
+                            println!("账户数据大小: {} 字节", account.data.len());
+                            println!("账户所有者: {}", account.owner);
+                            
+                            // 检查数据对齐
+                            println!("数据起始地址: {:p}", account.data.as_ptr());
+                            println!("数据对齐情况: 起始地址 % 8 = {}", (account.data.as_ptr() as usize) % 8);
+                            
+                            println!("尝试反序列化为Mint...");
+                            match Mint::try_deserialize(&mut account.data.as_ref()) {
+                                Ok(mint) => {
+                                    println!("反序列化成功");
+                                    tokens.insert(token_pk, mint);
+                                },
+                                Err(e) => {
+                                    println!("❌ 反序列化失败: {}", e);
+                                    // 不返回错误，继续处理其他代币
+                                }
+                            }
+                        } else {
+                            println!("账户不存在");
+                        }
+                    }
+                }
+                
+                println!("更新代币状态...");
+                let mut state = self.state.lock().unwrap();
+                state.tokens = tokens;
+                println!("状态更新完成");
+            },
+            Err(e) => {
+                println!("❌ 获取代币账户失败: {}", e);
+                return Err(e.into());
+            }
         }
-        let mut state = self.state.lock().unwrap();
-        state.tokens = tokens;
-
+        
+        println!("===== fetch_token_info完成 =====");
         Ok(())
     }
     /// 获取所有交易对中涉及的代币地址列表
