@@ -48,7 +48,7 @@ pub struct Core {
 }
 
 impl Core {
-    /// 刷新所有交易对的状态信息，包括流动性仓位、bin arrays等数据
+    /// 刷新config中的所有交易对的状态信息，包括流动性仓位、bin arrays等数据
     pub async fn refresh_state(&self) -> Result<()> {
         println!("===== refresh_state开始 =====");
         
