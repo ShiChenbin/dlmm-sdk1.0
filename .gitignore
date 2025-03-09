@@ -20,3 +20,5 @@ ts-client/.env
 .pnpm-debug.log
 
 WALLET.json
+WALLET2.json
+wallet_keypair.json
