@@ -200,8 +200,23 @@ impl Core {
                             println!("交易对状态更新完成");
                         },
                         Err(e) => {
-                            println!("❌ 获取Position失败: {}", e);
-                            return Err(e.into());
+                            println!("获取Position失败，可能是账户不存在或余额不足: {}", e);
+                            println!("将视为没有Position继续处理");
+                            
+                            // 更新状态，但设置为空Position
+                            let mut all_state = self.state.lock().unwrap();
+                            let state = all_state.all_positions.get_mut(&pair_address).unwrap();
+                            state.lb_pair_state = lb_pair_state;
+                            state.bin_arrays = HashMap::new();
+                            state.position_pks = vec![];
+                            state.positions = vec![];
+                            state.min_bin_id = 0;
+                            state.max_bin_id = 0;
+                            state.last_update_timestamp = get_epoch_sec();
+                            println!("交易对状态更新完成(无Position)");
+                            
+                            // 返回成功而不是错误
+                            return Ok(());
                         }
                     }
                 },
