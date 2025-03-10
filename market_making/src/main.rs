@@ -105,8 +105,8 @@ async fn main() {
     //     user_public_key,
     //     config_file,
     // } = Args::parse();
-    
-    // 硬编码参数
+    //
+    // 硬编码参数 https://api.devnet.solana.com
     let provider = Cluster::Custom(
         "https://mainnet.helius-rpc.com/?api-key=f17bedeb-4c13-407b-9b80-f4a6f4599fe3".to_string(),
         "wss://mainnet.helius-rpc.com/?api-key=f17bedeb-4c13-407b-9b80-f4a6f4599fe3".to_string() // WebSocket URL 先随便塞一个，可能无法使用
@@ -166,7 +166,7 @@ async fn main() {
         state: Arc::new(Mutex::new(AllPosition::new(&config))),
     };
 
-    // init some state
+    // init some stat
     core.refresh_state().await.unwrap();
     core.fetch_token_info().unwrap();
     let core = Arc::new(core);
