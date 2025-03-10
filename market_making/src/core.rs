@@ -53,6 +53,7 @@ impl Core {
         println!("===== refresh_state开始 =====");
         
         println!("创建Program对象...");
+        // 创建与DeFi协议只能合约交互的program对象，用于后续的RPC调用
         let program: Program<Arc<Keypair>> = create_program(
             self.provider.to_string(),
             self.provider.to_string(),
@@ -64,6 +65,7 @@ impl Core {
         for (i, pair) in self.config.iter().enumerate() {
             println!("处理交易对 #{}: {}", i+1, pair.pair_address);
             
+            // 将pair_address从字符串转换为Pubkey类型
             let pair_address = Pubkey::from_str(&pair.pair_address).unwrap();
             println!("尝试获取LbPair账户...");
             
