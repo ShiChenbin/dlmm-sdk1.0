@@ -84,7 +84,9 @@ impl Core {
             
             // 现在尝试解析账户
             println!("尝试解析为LbPair...");
+            println!("pair_address: {}", pair_address);
             let lb_pair_state_result = program.account::<LbPair>(pair_address).await;
+            
             match lb_pair_state_result {
                 Ok(lb_pair_state) => {
                     println!("成功获取LbPair");
