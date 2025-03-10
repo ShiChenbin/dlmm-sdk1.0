@@ -22,3 +22,4 @@ ts-client/.env
 WALLET.json
 WALLET2.json
 wallet_keypair.json
+base64
