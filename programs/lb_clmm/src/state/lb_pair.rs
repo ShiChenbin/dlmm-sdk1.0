@@ -45,6 +45,28 @@ pub enum PairStatus {
 }
 
 #[zero_copy]
+#[derive(Default, Debug, PartialEq)]
+pub struct CustomU128 {
+    pub data: [u8; 16],
+}
+
+impl CustomU128 {
+    pub fn as_u128(&self) -> core::primitive::u128 {
+        core::primitive::u128::from_le_bytes(self.data)
+    }
+    
+    pub fn from_u128(value: core::primitive::u128) -> Self {
+        Self {
+            data: value.to_le_bytes()
+        }
+    }
+}
+
+impl anchor_lang::Space for CustomU128 {
+    const INIT_SPACE: usize = 16;
+}
+
+#[zero_copy]
 #[derive(InitSpace, Default, Debug)]
 pub struct ProtocolFee {
     pub amount_x: u64,
@@ -168,7 +190,7 @@ pub struct RewardInfo {
     /// TODO check whether we need to store it in pool
     pub reward_duration_end: u64, // 8
     /// TODO check whether we need to store it in pool
-    pub reward_rate: u128, // 8
+    pub reward_rate: CustomU128, // 使用自定义类型替代u128
     /// The last time reward states were updated.
     pub last_update_time: u64, // 8
     /// Accumulated seconds where when farm distribute rewards, but the bin is empty. The reward will be accumulated for next reward time window.
@@ -220,7 +242,7 @@ impl RewardInfo {
 
         safe_mul_div_cast(
             time_period.into(),
-            self.reward_rate,
+            self.reward_rate.as_u128(),
             liquidity_supply.into(),
             Rounding::Down,
         )
@@ -235,7 +257,7 @@ impl RewardInfo {
         let time_period =
             U256::from(last_time_reward_applicable.safe_sub(self.last_update_time.into())?);
 
-        Ok(time_period.safe_mul(U256::from(self.reward_rate))?)
+        Ok(time_period.safe_mul(U256::from(self.reward_rate.as_u128()))?)
     }
 
     /// Farming rate after funding
@@ -252,7 +274,7 @@ impl RewardInfo {
         } else {
             let remaining_seconds = reward_duration_end.safe_sub(current_time)?;
             let leftover: u64 = safe_mul_shr_cast(
-                self.reward_rate,
+                self.reward_rate.as_u128(),
                 remaining_seconds.into(),
                 SCALE_OFFSET,
                 Rounding::Down,
@@ -261,12 +283,12 @@ impl RewardInfo {
             total_amount = leftover.safe_add(funding_amount)?;
         }
 
-        self.reward_rate = safe_shl_div_cast(
+        self.reward_rate = CustomU128::from_u128(safe_shl_div_cast(
             total_amount.into(),
             self.reward_duration.into(),
             SCALE_OFFSET,
             Rounding::Down,
-        )?;
+        )?);
         self.last_update_time = current_time;
         self.reward_duration_end = current_time.safe_add(self.reward_duration)?;
 
