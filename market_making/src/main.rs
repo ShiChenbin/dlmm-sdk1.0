@@ -108,8 +108,8 @@ async fn main() {
     //
     // 硬编码参数 https://api.devnet.solana.com
     let provider = Cluster::Custom(
-        "https://mainnet.helius-rpc.com/?api-key=f17bedeb-4c13-407b-9b80-f4a6f4599fe3".to_string(),
-        "wss://mainnet.helius-rpc.com/?api-key=f17bedeb-4c13-407b-9b80-f4a6f4599fe3".to_string() // WebSocket URL 先随便塞一个，可能无法使用
+        "https://api.mainnet-beta.solana.com".to_string(),
+        "wss://api.mainnet-beta.solana.com".to_string() // WebSocket URL 先随便塞一个，可能无法使用
     ); // 使用Helius RPC提供商
     let wallet = Some(String::from("./src/wallet_keypair.json")); // 
     // 使用cli 创建的钱包的公钥 VWdHkVXCbxmUBxu6pQHpkmooR8Dvh8LdzCCKz2WHGNv
