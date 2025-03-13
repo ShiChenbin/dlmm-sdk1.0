@@ -157,7 +157,7 @@ async fn main() {
     } else {
         user_public_key.unwrap()
     };
-
+    // 声明 core 以调用core函数
     let core = Core {
         provider,
         wallet,
