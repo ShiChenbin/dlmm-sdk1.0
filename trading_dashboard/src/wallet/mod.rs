@@ -5,15 +5,17 @@ pub use balance::*;
 pub use reader::*;
 
 use crate::config::Config;
-use anchor_client::{Cluster, Client};
+use anchor_client::{Cluster, Client, Program};
 use anchor_client::solana_sdk::signature::Keypair;
+use anchor_client::solana_sdk::signature::Signer;
+use anchor_client::solana_sdk::pubkey::Pubkey;
+use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use std::sync::{Arc, Mutex};
 use anyhow::*;
 
 pub struct WalletManager {
     pub config: Arc<Mutex<Config>>,
-    pub keypair: Arc<Mutex<Option<Keypair>>>,
-    pub client: Arc<Mutex<Option<Client<Arc<Keypair>>>>>,
+    keypair: Arc<Mutex<Option<Keypair>>>,
 }
 
 impl WalletManager {
@@ -21,56 +23,25 @@ impl WalletManager {
         Self { 
             config,
             keypair: Arc::new(Mutex::new(None)),
-            client: Arc::new(Mutex::new(None)),
         }
     }
     
-    // 初始化或更新钱包
+    // 初始化钱包
     pub fn initialize_wallet(&self) -> Result<()> {
-        let config = self.config.lock().map_err(|_| Error::msg("锁定配置时出错"))?;
+        let config = self.config.lock().map_err(|_| Error::msg("配置锁定失败"))?;
         
         let keypair = reader::read_wallet(&config.wallet_path, &config.wallet_mnemonic)?;
         
         // 更新keypair
-        let mut keypair_lock = self.keypair.lock().map_err(|_| Error::msg("锁定钱包时出错"))?;
+        let mut keypair_lock = self.keypair.lock().map_err(|_| Error::msg("钱包锁定失败"))?;
         *keypair_lock = Some(keypair);
-        
-        // 更新client
-        self.initialize_client()?;
         
         Ok(())
     }
     
-    // 初始化或更新客户端
-    pub fn initialize_client(&self) -> Result<()> {
-        let config = self.config.lock().map_err(|_| Error::msg("锁定配置时出错"))?;
-        let keypair_lock = self.keypair.lock().map_err(|_| Error::msg("锁定钱包时出错"))?;
-        
-        if let Some(ref keypair) = *keypair_lock {
-            let cluster = Cluster::Custom(
-                config.rpc_url.clone(), 
-                config.rpc_url.clone()
-            );
-            
-            let keypair_arc = Arc::new(keypair.clone());
-            let client = Client::new_with_options(
-                cluster,
-                keypair_arc,
-                anchor_client::solana_sdk::commitment_config::CommitmentConfig::confirmed(),
-            );
-            
-            let mut client_lock = self.client.lock().map_err(|_| Error::msg("锁定客户端时出错"))?;
-            *client_lock = Some(client);
-            
-            Ok(())
-        } else {
-            Err(Error::msg("尚未初始化钱包"))
-        }
-    }
-    
     // 获取当前钱包公钥地址
     pub fn get_wallet_address(&self) -> Result<String> {
-        let keypair_lock = self.keypair.lock().map_err(|_| Error::msg("锁定钱包时出错"))?;
+        let keypair_lock = self.keypair.lock().map_err(|_| Error::msg("钱包锁定失败"))?;
         
         if let Some(ref keypair) = *keypair_lock {
             Ok(keypair.pubkey().to_string())
@@ -79,14 +50,54 @@ impl WalletManager {
         }
     }
     
-    // 获取client
-    pub fn get_client(&self) -> Result<Client<Arc<Keypair>>> {
-        let client_lock = self.client.lock().map_err(|_| Error::msg("锁定客户端时出错"))?;
+    // 获取钱包的Pubkey
+    pub fn get_pubkey(&self) -> Result<Pubkey> {
+        let keypair_lock = self.keypair.lock().map_err(|_| Error::msg("钱包锁定失败"))?;
         
-        if let Some(ref client) = *client_lock {
-            Ok(client.clone())
+        if let Some(ref keypair) = *keypair_lock {
+            Ok(keypair.pubkey())
         } else {
-            Err(Error::msg("尚未初始化客户端"))
+            Err(Error::msg("尚未初始化钱包"))
         }
+    }
+    
+    // 获取钱包的克隆
+    pub fn get_keypair(&self) -> Result<Keypair> {
+        let keypair_lock = self.keypair.lock().map_err(|_| Error::msg("钱包锁定失败"))?;
+        
+        if let Some(ref keypair) = *keypair_lock {
+            Ok(keypair.insecure_clone())
+        } else {
+            Err(Error::msg("尚未初始化钱包"))
+        }
+    }
+    
+    // 为特定程序创建Program客户端
+    pub fn create_program<T>(&self, program_id: T) -> Result<Program<Arc<Keypair>>> 
+    where 
+        T: Into<Pubkey>
+    {
+        let payer = self.get_keypair()?;
+        let cluster = self.get_cluster()?;
+        
+        let client = anchor_client::Client::new_with_options(
+            cluster,
+            Arc::new(payer),
+            CommitmentConfig::processed(),
+        );
+        
+        Ok(client.program(program_id.into())
+            .map_err(|e| anyhow!("创建程序客户端失败: {}", e))?)
+    }
+
+    // 获取集群配置
+    fn get_cluster(&self) -> Result<anchor_client::Cluster> {
+        let config = self.config.lock().map_err(|_| anyhow!("配置锁定失败"))?;
+        
+        Ok(match config.rpc_url.as_str() {
+            "https://api.mainnet-beta.solana.com" => anchor_client::Cluster::Mainnet,
+            "https://api.devnet.solana.com" => anchor_client::Cluster::Devnet,
+            _ => anchor_client::Cluster::Custom(config.rpc_url.clone(), config.rpc_url.clone()),
+        })
     }
 }

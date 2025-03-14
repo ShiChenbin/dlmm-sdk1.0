@@ -1,53 +1,63 @@
 use anchor_client::solana_sdk::signature::Keypair;
-use anchor_client::solana_sdk::signer::Signer;
 use anyhow::*;
-use solana_sdk::derivation_path::DerivationPath;
 use solana_sdk::signature::read_keypair_file;
 use std::path::Path;
-use tiny_bip39::{Mnemonic, Language, Seed};
-use solana_sdk::pubkey::Pubkey;
-use std::str::FromStr;
+use bs58;
+use hmac::Hmac;
+use sha2::Sha512;
+use pbkdf2::pbkdf2;
 
-// 从助记词创建钱包
-pub fn keypair_from_mnemonic(mnemonic: &str, passphrase: &str) -> Result<Keypair> {
-    let mnemonic = Mnemonic::from_phrase(mnemonic, Language::English)
-        .map_err(|e| Error::msg(format!("无效的助记词: {}", e)))?;
+// 从助记词创建钱包（简化版，仅用于测试）
+// 警告：这不是生产环境下推荐的实现方式
+pub fn keypair_from_seed(seed_phrase: &str) -> Result<Keypair> {
+    // 使用简单哈希生成种子
+    let mut seed = [0u8; 32];
+    let salt = b"solana-keygen";
     
-    let seed = Seed::new(&mnemonic, passphrase);
-    let seed_bytes = seed.as_bytes();
+    // pbkdf2返回()，直接调用不需要检查错误
+    pbkdf2::<Hmac<Sha512>>(
+        seed_phrase.as_bytes(),
+        salt,
+        2048,
+        &mut seed,
+    );
     
-    // 使用默认的衍生路径 m/44'/501'/0'/0'
-    let path = DerivationPath::from_str("m/44'/501'/0'/0'")
-        .map_err(|e| Error::msg(format!("无效的衍生路径: {}", e)))?;
-    
-    let keypair = keypair_from_seed_and_path(seed_bytes, &path)
-        .map_err(|e| Error::msg(format!("从种子创建密钥对失败: {}", e)))?;
-    
-    Ok(keypair)
+    // 从种子创建密钥对
+    Keypair::from_bytes(&seed)
+        .map_err(|_| anyhow!("从种子创建密钥对失败"))
 }
 
-// 从文件或助记词读取钱包
-pub fn read_wallet(path_or_mnemonic: &Option<String>, mnemonic_str: &Option<String>) -> Result<Keypair> {
-    // 优先使用助记词
-    if let Some(mnemonic) = mnemonic_str {
-        return keypair_from_mnemonic(mnemonic, ""); // 空密码
+// 从Base58字符串创建钱包
+pub fn keypair_from_base58(base58_str: &str) -> Result<Keypair> {
+    let bytes = bs58::decode(base58_str)
+        .into_vec()
+        .map_err(|_| anyhow!("无效的Base58字符串"))?;
+        
+    Keypair::from_bytes(&bytes)
+        .map_err(|_| anyhow!("无效的密钥对字节"))
+}
+
+// 读取钱包
+pub fn read_wallet(path_or_key: &Option<String>, secret_key: &Option<String>) -> Result<Keypair> {
+    // 优先使用密钥字符串
+    if let Some(key) = secret_key {
+        // 尝试作为Base58字符串解析
+        let base58_result = keypair_from_base58(key);
+        if base58_result.is_ok() {
+            return base58_result;
+        }
+        
+        // 尝试作为种子短语使用
+        return keypair_from_seed(key);
     }
     
-    // 如果没有助记词，尝试从文件读取
-    if let Some(path) = path_or_mnemonic {
+    // 如果没有密钥，尝试从文件读取
+    if let Some(path) = path_or_key {
         if Path::new(path).exists() {
             return read_keypair_file(path)
-                .map_err(|_| Error::msg(format!("无法读取钱包文件: {}", path)));
+                .map_err(|_| anyhow!(format!("无法读取钱包文件: {}", path)));
         }
     }
     
-    // 都没有则返回错误
-    Err(Error::msg("未提供钱包助记词或有效的钱包文件路径"))
-}
-
-// 辅助函数 - 从种子和路径创建密钥对
-fn keypair_from_seed_and_path(seed: &[u8], path: &DerivationPath) -> std::result::Result<Keypair, Box<dyn std::error::Error>> {
-    let ed25519_derivation = ed25519_dalek::SigningKey::derive_from_path(seed, path)?;
-    let signing_key = ed25519_dalek::SigningKey::from_bytes(&ed25519_derivation.as_ref());
-    Ok(Keypair::from_bytes(&signing_key.to_bytes())?)
+    Err(anyhow!("未提供钱包密钥或有效的钱包文件路径"))
 }

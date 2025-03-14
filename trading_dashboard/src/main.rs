@@ -17,9 +17,16 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::interval;
 use anyhow::*;
+use env_logger;
+
+fn setup_logging() {
+    let env = env_logger::Env::default().filter_or("LOG_LEVEL", "info");
+    env_logger::Builder::from_env(env).init();
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    setup_logging();
     // 创建配置管理器
     let config_manager = Arc::new(ConfigManager::new());
     

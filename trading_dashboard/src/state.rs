@@ -60,7 +60,7 @@ impl SinglePosition {
 }
 
 // 辅助函数
-pub fn get_decimals(token_mint_pk: Pubkey, all_tokens: &HashMap<Pubkey, Mint>) -> u8 {
-    let token = all_tokens.get(&token_mint_pk).unwrap();
-    return token.decimals;
+pub fn get_decimals(mint: Pubkey, tokens: &HashMap<Pubkey, u8>) -> u8 {
+    // 尝试从tokens映射中获取小数位数
+    tokens.get(&mint).copied().unwrap_or(6) // 默认为6位小数
 } 

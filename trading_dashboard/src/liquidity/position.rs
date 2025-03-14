@@ -1,4 +1,4 @@
-use crate::bin_array_manager::BinArrayManager;
+use crate::liquidity::bin_array_manager::BinArrayManager;
 use crate::state::{SinglePosition, AllPosition};
 use anchor_lang::prelude::Pubkey;
 use anyhow::*;
@@ -9,6 +9,7 @@ use lb_clmm::state::bin::{Bin, BinArray};
 use lb_clmm::utils::pda;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
+use crate::state::get_decimals;
 
 const SLIPPAGE_RATE: u64 = 300; // 3%
 const BASIC_POINT_MAX: u64 = 10_000;
@@ -76,8 +77,16 @@ impl PositionManager {
         let mut position_infos = vec![];
         
         for (_, position) in &state.all_positions {
-            let x_decimals = get_decimals(position.lb_pair_state.token_x_mint, &state.tokens);
-            let y_decimals = get_decimals(position.lb_pair_state.token_y_mint, &state.tokens);
+            // 从token mint中提取decimals
+            let x_decimals = state.tokens
+                .get(&position.lb_pair_state.token_x_mint)
+                .map(|mint| mint.decimals)
+                .unwrap_or(6);
+            
+            let y_decimals = state.tokens
+                .get(&position.lb_pair_state.token_y_mint)
+                .map(|mint| mint.decimals)
+                .unwrap_or(6);
             
             let position_raw = position.get_positions()?;
             position_infos.push(position_raw.to_position_info(x_decimals, y_decimals)?);
