@@ -89,6 +89,12 @@ impl WalletManager {
         Ok(client.program(program_id.into())
             .map_err(|e| anyhow!("创建程序客户端失败: {}", e))?)
     }
+    
+    // 创建RPC客户端
+    pub fn create_rpc_client(&self) -> Result<solana_client::rpc_client::RpcClient> {
+        let config = self.config.lock().map_err(|_| anyhow!("配置锁定失败"))?;
+        Ok(solana_client::rpc_client::RpcClient::new(config.rpc_url.clone()))
+    }
 
     // 获取集群配置
     fn get_cluster(&self) -> Result<anchor_client::Cluster> {

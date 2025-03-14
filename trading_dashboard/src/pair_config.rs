@@ -44,14 +44,14 @@ pub fn get_pair_config(configs: &Vec<PairConfig>, lb_pair: Pubkey) -> PairConfig
 
 // 根据池子地址获取配置
 pub fn get_pair_config_for_pool(pool_address: &str) -> Result<PairConfig> {
-    // 实际应该从配置文件或数据库获取
-    // 这里返回示例配置
-    Ok(PairConfig {
+    let default_config = PairConfig {
         pair_address: pool_address.to_string(),
-        token_x_mint: "TokenXMintAddress".to_string(),
-        token_y_mint: "TokenYMintAddress".to_string(),
-        x_amount: 1000,
-        y_amount: 1000,
+        token_x_mint: "So11111111111111111111111111111111111111112".to_string(), // SOL代币地址
+        token_y_mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(), // USDC代币地址
+        x_amount: 1_000_000, // 默认值，单位为lamports
+        y_amount: 1_000_000, // 默认值，单位为最小单位
         mode: MarketMakingMode::ModeBoth,
-    })
+    };
+    
+    Ok(default_config)
 } 
