@@ -4,14 +4,24 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-lb_clmm =  { path = "../programs/lb_clmm", features = ["cpi"] }
-
-anchor-client={workspace=true, features=["async"]}
-anchor-spl={workspace=true}
-anchor-lang={workspace=true}
-
-solana-sdk = "1.16.0"
-tokio = {workspace=true, features = ["full"] }
-
-serde_json = {workspace=true}
-serde = { workspace=true, features = ["derive"] }
+anyhow = "1.0.71"
+anchor-client = "0.28.0"
+anchor-lang = "0.28.0"
+anchor-spl = "0.28.0"
+solana-sdk = "1.16.12"
+solana-client = "=1.16.12"
+solana-transaction-status = "1.16.12"
+tokio = { version = "~1.14.1", features = ["full"] }
+serde = { version = "1.0.104", features = ["derive"] }
+serde_json = "1.0.48"
+lb_clmm = { path = "../programs/lb_clmm", features = ["cpi"] }
+ed25519-dalek = "1.0"
+hmac = "0.12"
+pbkdf2 = "0.11"
+sha2 = "0.10"
+log = "0.4.17"
+env_logger = "0.9.0"
+bs58 = "0.5.0"
+chrono = "0.4.31"
+rust_decimal = "1.31.0"
+shellexpand = "3.1.0"
