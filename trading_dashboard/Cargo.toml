@@ -1,0 +1,15 @@
+[package]
+name = "trading_dashboard"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lb_clmm = { path = "../programs/lb_clmm", features = ["no-entrypoint"] }
+
+
+[workspace]
+members = [
+  "programs/lb_clmm",
+  "market_making",
+  "trading_dashboard"
+]
