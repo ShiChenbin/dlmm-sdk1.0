@@ -5296,6 +5296,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "test_sdk"
+version = "0.1.0"
+
+[[package]]
 name = "textwrap"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5606,6 +5610,20 @@ dependencies = [
  "sharded-slab",
  "thread_local",
  "tracing-core",
+]
+
+[[package]]
+name = "trading_dashboard"
+version = "0.1.0"
+dependencies = [
+ "anchor-client",
+ "anchor-lang",
+ "anchor-spl",
+ "lb_clmm",
+ "serde",
+ "serde_json",
+ "solana-sdk",
+ "tokio",
 ]
 
 [[package]]

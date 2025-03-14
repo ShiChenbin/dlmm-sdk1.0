@@ -1,15 +1,17 @@
 [package]
 name = "trading_dashboard"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
-lb_clmm = { path = "../programs/lb_clmm", features = ["no-entrypoint"] }
+lb_clmm =  { path = "../programs/lb_clmm", features = ["cpi"] }
 
+anchor-client={workspace=true, features=["async"]}
+anchor-spl={workspace=true}
+anchor-lang={workspace=true}
 
-[workspace]
-members = [
-  "programs/lb_clmm",
-  "market_making",
-  "trading_dashboard"
-]
+solana-sdk = "1.16.0"
+tokio = {workspace=true, features = ["full"] }
+
+serde_json = {workspace=true}
+serde = { workspace=true, features = ["derive"] }
