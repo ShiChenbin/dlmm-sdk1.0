@@ -15,6 +15,7 @@ tokio = { version = "~1.14.1", features = ["full"] }
 serde = { version = "1.0.104", features = ["derive"] }
 serde_json = "1.0.48"
 lb_clmm = { path = "../programs/lb_clmm", features = ["cpi"] }
+reqwest = { version = "0.11", features = ["json"] }
 ed25519-dalek = "1.0"
 hmac = "0.12"
 pbkdf2 = "0.11"
